@@ -1,31 +1,35 @@
-import java.awt.EventQueue;
-
-import javax.swing.JFrame;
 import java.awt.BorderLayout;
-import javax.swing.JPanel;
-import java.awt.GridBagLayout;
-import javax.swing.JLabel;
-import java.awt.GridBagConstraints;
-import javax.swing.JComboBox;
-import java.awt.Insets;
-import javax.swing.JSlider;
-import javax.swing.JButton;
-import javax.swing.border.BevelBorder;
-import javax.swing.border.CompoundBorder;
-import javax.swing.border.EmptyBorder;
 import java.awt.Color;
+import java.awt.Desktop;
+import java.awt.EventQueue;
 import java.awt.Font;
-import java.awt.event.ActionListener;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.event.ActionEvent;
-import javax.swing.event.ChangeListener;
-import javax.swing.event.ChangeEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JSlider;
+import javax.swing.border.EmptyBorder;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 
 public class MainWindow {
 
 	private JFrame frmHowSortingWorks;
+	private Thread sortThread;
 
 	/**
 	 * Launch the application.
@@ -71,7 +75,7 @@ public class MainWindow {
 		gbl_panelNorth.rowWeights = new double[]{0.0, Double.MIN_VALUE};
 		panelNorth.setLayout(gbl_panelNorth);
 		
-		JLabel labelAlgorithm = new JLabel("Algorithm");
+		final JLabel labelAlgorithm = new JLabel("Algorithm");
 		GridBagConstraints gbc_labelAlgorithm = new GridBagConstraints();
 		gbc_labelAlgorithm.insets = new Insets(0, 5, 0, 5);
 		gbc_labelAlgorithm.anchor = GridBagConstraints.EAST;
@@ -81,6 +85,7 @@ public class MainWindow {
 		
 		final JComboBox<SortingAlgorithm> comboBoxAlgorithm = new JComboBox<SortingAlgorithm>();
 		comboBoxAlgorithm.addItem(new SimpleSort());
+        comboBoxAlgorithm.addItem(new QuickSort());
 		
 		GridBagConstraints gbc_comboBoxAlgorithm = new GridBagConstraints();
 		gbc_comboBoxAlgorithm.insets = new Insets(1, 0, 0, 5);
@@ -96,7 +101,7 @@ public class MainWindow {
 		gbc_labelDelay.gridy = 0;
 		panelNorth.add(labelDelay, gbc_labelDelay);
 		
-		JLabel labelElements = new JLabel("Elements");
+		final JLabel labelElements = new JLabel("Elements");
 		GridBagConstraints gbc_labelElements = new GridBagConstraints();
 		gbc_labelElements.insets = new Insets(0, 10, 0, 0);
 		gbc_labelElements.gridx = 4;
@@ -129,6 +134,15 @@ public class MainWindow {
 		panelSouth.add(labelComp, gbc_labelComp);
 		
 		JLabel labelBy = new JLabel("<html>by <a href=\"http://tobiasschomann.de\">Tobias Schomann</a></html>");
+		labelBy.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent e) {
+				try {
+					Desktop.getDesktop().browse(new URI("http://tobiasschomann.de/"));
+				} catch (IOException | URISyntaxException e1) {
+				}
+			}
+		});
 		labelBy.setFont(new Font("Dialog", Font.PLAIN, 11));
 		GridBagConstraints gbc_labelBy = new GridBagConstraints();
 		gbc_labelBy.anchor = GridBagConstraints.EAST;
@@ -136,17 +150,17 @@ public class MainWindow {
 		gbc_labelBy.gridy = 0;
 		panelSouth.add(labelBy, gbc_labelBy);
 		
-		final ValueListCanvas vlc = new ValueListCanvas();
-		vlc.setForeground(Color.BLACK);
-		vlc.setBackground(Color.WHITE);
-		frmHowSortingWorks.getContentPane().add(vlc, BorderLayout.CENTER);
+		final VisualList vl = new VisualList();
+		vl.setForeground(Color.BLACK);
+		vl.setBackground(Color.WHITE);
+		frmHowSortingWorks.getContentPane().add(vl, BorderLayout.CENTER);
 		
 		final JSlider sliderDelay = new JSlider();
 		sliderDelay.setValue(4);
 		sliderDelay.setMaximum(9);
 		sliderDelay.addChangeListener(new ChangeListener() {
 			public void stateChanged(ChangeEvent e) {
-				vlc.setTimeUnit(sliderDelay.getValue());
+				vl.setTimeUnit(sliderDelay.getValue());
 			}
 		});
 		sliderDelay.setBackground(Color.LIGHT_GRAY);
@@ -163,7 +177,7 @@ public class MainWindow {
 		sliderElements.setMinimum(10);
 		sliderElements.addChangeListener(new ChangeListener() {
 			public void stateChanged(ChangeEvent arg0) {
-				vlc.setRandomList(sliderElements.getValue());
+				vl.setRandomList(sliderElements.getValue());
 			}
 		});
 		sliderElements.setBackground(Color.LIGHT_GRAY);
@@ -175,16 +189,34 @@ public class MainWindow {
 		panelNorth.add(sliderElements, gbc_sliderElements);
 		
 		
-		JButton buttonRun = new JButton("run");
+		final JButton buttonRun = new JButton("run");
 		buttonRun.addActionListener(new ActionListener() {
 			public void actionPerformed(ActionEvent arg0) {
-				Thread thread = new Thread() {
-					@Override
-					public void run() {
-						((SortingAlgorithm)comboBoxAlgorithm.getSelectedItem()).sort(vlc);
-					}
-				};
-				thread.start();
+				if (buttonRun.getText().equals("run")) {
+					sortThread = new Thread() {
+						@Override
+						public void run() {
+							//labelAlgorithm.setEnabled(false);
+							comboBoxAlgorithm.setEnabled(false);
+							//labelElements.setEnabled(false);
+							sliderElements.setEnabled(false);
+							buttonRun.setText("running");
+							buttonRun.setEnabled(false);
+							((SortingAlgorithm)comboBoxAlgorithm.getSelectedItem()).sort(vl);
+							//labelAlgorithm.setEnabled(true);
+							comboBoxAlgorithm.setEnabled(true);
+							//labelElements.setEnabled(true);
+							sliderElements.setEnabled(true);
+							buttonRun.setText("shuffle");
+							buttonRun.setEnabled(true);
+						}
+					};
+					sortThread.start();
+				} else if (buttonRun.getText().equals("shuffle")) {
+					vl.reset();
+					buttonRun.setText("run");
+				}
+				
 			}
 		});
 		GridBagConstraints gbc_buttonRun = new GridBagConstraints();
@@ -196,8 +228,8 @@ public class MainWindow {
 		frmHowSortingWorks.addWindowListener(new WindowAdapter() {
 			@Override
 			public void windowOpened(WindowEvent e) {
-				vlc.setTimeUnit(sliderDelay.getValue());
-				vlc.setRandomList(sliderElements.getValue());
+				vl.setTimeUnit(sliderDelay.getValue());
+				vl.setRandomList(sliderElements.getValue());
 			}
 		});
 		

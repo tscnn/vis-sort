@@ -1,6 +1,6 @@
 public interface SortingAlgorithm {
 	
-	public void sort(ValueListCanvas vlc);
+	public void sort(VisualList vl);
 	
 	public String toString();
 	
