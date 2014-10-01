@@ -86,6 +86,7 @@ public class MainWindow {
 		final JComboBox<SortingAlgorithm> comboBoxAlgorithm = new JComboBox<SortingAlgorithm>();
 		comboBoxAlgorithm.addItem(new SimpleSort());
         comboBoxAlgorithm.addItem(new QuickSort());
+        comboBoxAlgorithm.addItem(new MergeSort());
 		
 		GridBagConstraints gbc_comboBoxAlgorithm = new GridBagConstraints();
 		gbc_comboBoxAlgorithm.insets = new Insets(1, 0, 0, 5);

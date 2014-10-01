@@ -1,13 +1,18 @@
-import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Graphics;
-import java.awt.GraphicsConfiguration;
+import java.awt.Image;
+import java.awt.event.ComponentEvent;
+import java.awt.event.ComponentListener;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
-public class VisualList extends Canvas {
+import javax.swing.JPanel;
+
+public class VisualList extends JPanel implements ComponentListener {
 
 	private static final long serialVersionUID = 1L;
 	
@@ -19,30 +24,27 @@ public class VisualList extends Canvas {
 	private static Color COLOR_FG_SELECTED_1 = Color.RED;
 	private static Color COLOR_FG_SELECTED_2 = Color.GREEN;
 
+	private int width;
+	private int height;
+	private Graphics bufferGraphics = null;
+    private Image offscreen = null; 
+    final private Lock lock;
 	private List<VisualItem> items;
 	private int timeUnit;
 	private int comparisons;
 	
 	public VisualList() {
 		super();
-		init();
-	}
-
-	public VisualList(GraphicsConfiguration config) {
-		super(config);
-		init();
-	}
-	
-	private void init() {
+		addComponentListener(this);
 		items = new LinkedList<VisualItem>();
-		//setIgnoreRepaint(true);
+		lock = new ReentrantLock();
 	}
 	
 	public void setRandomList(int numElements) {
 		items.clear();
-		for (int i=0; i<numElements; i++) {
+		for (int i=1; i<=numElements; i++) {
 			VisualItem item = new VisualItem();
-			item.setValue(Math.random());
+			item.setValue((double)i/(double)numElements);
 			items.add(item);
 		}
 		reset();
@@ -55,15 +57,22 @@ public class VisualList extends Canvas {
 		}
 		comparisons = 0;
 		Collections.shuffle(items, new Random(System.nanoTime()));
-		paint(getGraphics());
+		repaint();
 	}
 	
+	public void update(Graphics g) {
+         paint(g);
+    } 
+	
 	public void paint(Graphics g) {
-		g.setColor(getBackground());
-		g.fillRect(0, 0, getWidth(), getHeight());
+		bufferGraphics.setColor(COLOR_BG_DEFAULT);
+		bufferGraphics.fillRect(0, 0, width, height);
+		lock.lock();
 		for (int i=0; i<items.size(); i++) {
 			drawElement(i);
 		}
+		lock.unlock();
+		g.drawImage(offscreen, 0, 0, this); 
 	}
 	
 	public int getComparisons() {
@@ -83,104 +92,98 @@ public class VisualList extends Canvas {
 		VisualItem tmp = items.get(index1);
 		items.set(index1, items.get(index2));
 		items.set(index2, tmp);
-		drawElement(index1);
-		drawElement(index2);
-		getToolkit().sync();
+		repaint();
 	}
     
     public void moveElement(int index1, int index2) {
         if (index1 == index2) {
             return;
         } else if (index1 < index2) {
+        	lock.lock();
             items.add(index2 + 1, items.get(index1));
             items.remove(index1);
-            for (int i=index1; i<=index2; i++) {
-                drawElement(i);
-            }
+            lock.unlock();
         } else {
+        	lock.lock();
             items.add(index2, items.get(index1));
             items.remove(index1 + 1);
-            for (int i=index2; i<=index1; i++) {
-                drawElement(i);
-            }
+            lock.unlock();
         }
-        getToolkit().sync();
-        wait(1);
+		repaint();
     }
 	
 	public void highlightPair1(int index1, int index2, int timeUnits) {
-		setPairForegroundSelected1(index1, index2);
-		wait(timeUnits);
-		setPairForegroundDefault(index1, index2);
+		if (timeUnit > -1) {
+			setPairForegroundSelected1(index1, index2);
+			wait(timeUnits);
+			setPairForegroundDefault(index1, index2);
+		}
 	}
 	
 	public void highlightPair2(int index1, int index2, int timeUnits) {
-		setPairForegroundSelected2(index1, index2);
-		wait(timeUnits);
-		setPairForegroundDefault(index1, index2);
+		if (timeUnit > -1) {
+			setPairForegroundSelected2(index1, index2);
+			wait(timeUnits);
+			setPairForegroundDefault(index1, index2);
+		}
 	}
     
     public void highlightElement1(int index, int timeUnits) {
-        setItemForegroundSelected1(index);
-        wait(timeUnits);
-        setItemForegroundDefault(index);
+    	if (timeUnit > -1) {
+    		setItemForegroundSelected1(index);
+    		wait(timeUnits);
+    		setItemForegroundDefault(index);
+    	}
     }
     
     public void highlightElement2(int index, int timeUnits) {
-        setItemForegroundSelected2(index);
-        wait(timeUnits);
-        setItemForegroundDefault(index);
+    	if (timeUnit > -1) {
+    		setItemForegroundSelected2(index);
+    		wait(timeUnits);
+    		setItemForegroundDefault(index);
+    	}
     }
 	
 	private void setItemBackground(int index, Color color) {
 		items.get(index).setBackground(color);
-		drawElement(index);
-		getToolkit().sync();
+		repaint();
 	}
 	
 	private void setPairBackground(int index1, int index2, Color color1, Color color2) {
 		items.get(index1).setBackground(color1);
 		items.get(index2).setBackground(color2);
-		drawElementBackground(index1);
-		drawElementBackground(index2);
-		getToolkit().sync();
+		repaint();
 	}
 	
 	private void setRangeBackground(int leftIndex, int rightIndex, Color color) {
 		for (int i=leftIndex; i<=rightIndex; i++) {
 			items.get(i).setBackground(color);
-			drawElementBackground(i);
 		}
-		getToolkit().sync();
+		repaint();
 	}
 	
 	private void setItemForeground(int index, Color color) {
 		items.get(index).setForeground(color);
-		drawElement(index);
-		getToolkit().sync();
+		repaint();
 	}
 	
 	private void setPairForeground(int index1, int index2, Color color1, Color color2) {
 		items.get(index1).setForeground(color1);
 		items.get(index2).setForeground(color2);
-		drawElementForeground(index1);
-		drawElementForeground(index2);
-		getToolkit().sync();
+		repaint();
 	}
 	
 	private void setRangeForeground(int leftIndex, int rightIndex, Color color) {
 		for (int i=leftIndex; i<=rightIndex; i++) {
 			items.get(i).setForeground(color);
-			drawElementForeground(i);
 		}
-		getToolkit().sync();
+		repaint();
 	}
 	
 	private void setItemColor(int index, Color fg, Color bg) {
 		items.get(index).setForeground(fg);
 		items.get(index).setBackground(bg);
-		drawElement(index);
-		getToolkit().sync();
+		repaint();
 	}
 	
 	private void setPairColor(int index1, int index2, Color fg1, Color bg1, Color fg2, Color bg2) {
@@ -188,18 +191,15 @@ public class VisualList extends Canvas {
 		items.get(index1).setBackground(bg1);
 		items.get(index2).setForeground(fg2);
 		items.get(index1).setBackground(bg2);
-		drawElement(index1);
-		drawElement(index2);
-		getToolkit().sync();
+		repaint();
 	}
 	
 	private void setRangeColor(int leftIndex, int rightIndex, Color fg, Color bg) {
 		for (int i=leftIndex; i<=rightIndex; i++) {
 			items.get(i).setForeground(fg);
 			items.get(i).setBackground(bg);
-			drawElement(i);
 		}
-		getToolkit().sync();
+		repaint();
 	}
 	
 	public void setItemBackgroundDefault(int index) {
@@ -278,23 +278,21 @@ public class VisualList extends Canvas {
 	
 
 	private void drawElementForeground(int index) {
-		Graphics graphics = getGraphics();
 		Double value = items.get(index).getValue();
-		int height = (int) (value * getHeight());
-		int width = getWidth() / items.size();
-		int offset = getWidth() - items.size() * width;
-		graphics.setColor(items.get(index).getForeground());
-		graphics.fillRect(offset + index * width, getHeight() - height, width, height);
+		int h = (int) (value * height);
+		int w = getWidth() / items.size();
+		int offset = width - items.size() * w;
+		bufferGraphics.setColor(items.get(index).getForeground());
+		bufferGraphics.fillRect(offset + index * w, height - h, w, h);
 	}
 	
 	private void drawElementBackground(int index) {
-		Graphics graphics = getGraphics();
 		Double value = items.get(index).getValue();
-		int height = (int) (value * getHeight());
-		int width = getWidth() / items.size();
-		int offset = getWidth() - items.size() * width;
-		graphics.setColor(items.get(index).getBackground());
-		graphics.fillRect(offset + index * width, 0, width, getHeight() - height);
+		int h = (int) (value * height);
+		int w = width / items.size();
+		int offset = width - items.size() * w;
+		bufferGraphics.setColor(items.get(index).getBackground());
+		bufferGraphics.fillRect(offset + index * w, 0, w, height - h);
 	}
 	
 	private void drawElement(int index) {
@@ -306,7 +304,7 @@ public class VisualList extends Canvas {
 		this.timeUnit = timeUnit;
 	}
 	
-	private void wait(int timeUnits) {
+	public void wait(int timeUnits) {
 		Double d = Math.pow(2, timeUnit * timeUnits) - 1;
 		try {
 			if (d < 1) {
@@ -316,6 +314,26 @@ public class VisualList extends Canvas {
 			}
 		} catch (InterruptedException e) {
 		}	
+	}
+
+	@Override
+	public void componentHidden(ComponentEvent arg0) {
+	}
+
+	@Override
+	public void componentMoved(ComponentEvent arg0) {
+	}
+
+	@Override
+	public void componentShown(ComponentEvent arg0) {
+	}
+
+	@Override
+	public void componentResized(ComponentEvent e) {
+		width = getWidth();
+		height = getHeight();
+		offscreen = createImage(width, height);
+		bufferGraphics = offscreen.getGraphics();
 	}
 
 }
